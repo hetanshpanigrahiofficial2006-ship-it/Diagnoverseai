@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  # Next.js Application
+  pulsecheck-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pulsecheck-ai-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Node.js Configuration
+      - NODE_ENV=production
+      - NODE_VERSION=18
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      
+      # Next.js Configuration
+      - NEXT_TELEMETRY_DISABLED=1
+      
+      # Firebase Configuration
+      - NEXT_PUBLIC_FIREBASE_API_KEY=${NEXT_PUBLIC_FIREBASE_API_KEY}
+      - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}
+      - NEXT_PUBLIC_FIREBASE_PROJECT_ID=${NEXT_PUBLIC_FIREBASE_PROJECT_ID}
+      - NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}
+      - NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}
+      - NEXT_PUBLIC_FIREBASE_APP_ID=${NEXT_PUBLIC_FIREBASE_APP_ID}
+      
+      # Google AI Configuration
+      - GOOGLE_GENAI_API_KEY=${GOOGLE_GENAI_API_KEY}
+      
+      # OpenAI Configuration (optional)
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      
+      # Sarvam AI Configuration
+      - SARVAM_API_KEY=${SARVAM_API_KEY}
+      
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - pulsecheck-network
+      
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health || curl -f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+      
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+  # Nginx Reverse Proxy (Optional for production)
+  nginx:
+    image: nginx:alpine
+    container_name: pulsecheck-ai-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - pulsecheck-ai
+    networks:
+      - pulsecheck-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+        reservations:
+          memory: 64M
+          cpus: '0.1'
+
+networks:
+  pulsecheck-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  logs:
+    driver: local
